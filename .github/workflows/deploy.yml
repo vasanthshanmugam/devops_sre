@@ -25,4 +25,14 @@ jobs:
       - name: Final SRE Health Check
         run: |
           kubectl get pods -n devops-lab
-          echo "Deployment successful. View at http://192.168.0.26:30088"
+          echo "Deployment successful. View at http://192.168.0.26:30088
+
+      - name: Verify Source Files Exist
+        run: |
+          # This command will list the files so we can confirm their paths in the logs
+          ls -R src/
+          ls -R app/
+          if [ ! -f src/shop.jsp ]; then
+            echo "Error: src/shop.jsp not found in the runner's workspace!"
+            exit 1
+          fi
