@@ -17,12 +17,13 @@ jobs:
           kubectl rollout restart deployment app-server -n devops-lab
           echo "Deployment job finished."
 
-      - name: SRE Connectivity Check (App to DB)
+      - name: SRE Database Readiness Check
         run: |
-          # 1. Get the App Pod name
-          APP_POD=$(kubectl get pods -n devops-lab -l app=app-server -o jsonpath='{.items[0].metadata.name}')
-          
-          # 2. Test connection using the Service Name (Removed -it for automation)
-          # We use the full DNS name: my-db-postgresql.devops-lab.svc.cluster.local
-          echo "Testing connection from $APP_POD to my-db-postgresql..."
-          kubectl exec -i $APP_POD -n devops-lab -- timeout 2 bash -c "cat < /dev/tcp/my-db-postgresql.devops-lab.svc.cluster.local/5432" && echo "DB is REACHABLE" || echo "DB is UNREACHABLE"
+          # Check if the DB endpoint exists and has an IP assigned
+          DB_IP=$(kubectl get endpoints my-db-postgresql -n devops-lab -o jsonpath='{.subsets[0].addresses[0].ip}')
+          if [ -z "$DB_IP" ]; then
+            echo "FAILED: Database Service has no active pods/endpoints."
+            exit 1
+          else
+            echo "SUCCESS: Database is ready at IP $DB_IP"
+          fi
