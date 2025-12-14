@@ -10,40 +10,61 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Ensure 'devops-lab' Namespace Exists
+      - name: Ensure 'monitoring' and 'devops-lab' Namespaces Exist
         run: |
-          kubectl create namespace devops-lab || echo "Namespace already exists or cannot be created"        
+          kubectl create namespace monitoring || echo "Namespace 'monitoring' exists"
+          kubectl create namespace devops-lab || echo "Namespace 'devops-lab' exists"
+          
+      - name: Install Monitoring Stack (Prometheus/Grafana)
+        run: |
+          helm repo add prometheus-community prometheus-community.github.io
+          helm repo update
+          helm install monitoring prometheus-community/kube-prometheus-stack --namespace monitoring --wait --timeout 5m
 
-      - name: Deploy Backend Logic (JSP)
+      - name: Install Database (PostgreSQL) and Services
         run: |
-          # Inject shop.jsp into the Tomcat App Server
+          helm repo add bitnami charts.bitnamico.com # Corrected URL
+          helm install my-db oci://registry-1.docker.io/bitnamicharts/postgresql --namespace devops-lab --set auth.database=student_db --set auth.postgresPassword=devops_password --wait
+
+          # Create internal K8s services for the app/web servers
+          kubectl expose deployment app-server --port=8080 --name=app-server -n devops-lab || echo "app-server svc exists"
+          kubectl expose deployment web-server --type=NodePort --port=80 --target-port=80 --name=web-service -n devops-lab || echo "web-service svc exists"
+          
+          # Set the fixed NodePort for external access
+          kubectl patch svc web-service -n devops-lab -p '{"spec": {"ports": [{"port": 80, "nodePort": 30088}]}}'
+
+      - name: Deploy App & Web Infrastructure (Nginx/Tomcat)
+        run: |
+          # Apply the base infrastructure from your k8s folder
+          kubectl apply -f k8s/app-deployment.yaml
+          kubectl apply -f k8s/web-deployment.yaml
+
+
+      - name: Deploy Backend Logic (JSP) via ConfigMap
+        run: |
+          # Create/Force Replace the ConfigMap with the latest file from GitHub
           kubectl create configmap ecommerce-logic --from-file=shop.jsp=src/shop.jsp -n devops-lab --dry-run=client -o yaml | kubectl replace --force -f -
+          # Restart Tomcat to pick up the new code
           kubectl rollout restart deployment app-server -n devops-lab
 
-      - name: Deploy Frontend UI (HTML)
+      - name: Deploy Frontend UI (HTML) via ConfigMap
         run: |
-          # Inject index.html into the Nginx Web Server
+          # Create/Force Replace the UI ConfigMap
           kubectl create configmap web-frontend --from-file=index.html=src/index.html -n devops-lab --dry-run=client -o yaml | kubectl replace --force -f -
+          # Restart Nginx
           kubectl rollout restart deployment web-server -n devops-lab
+
       - name: Deploy Nginx Configuration (The Proxy Rule)
         run: |
-          # Use 'replace --force' to update the Nginx CM
+          # Create/Force Replace the Nginx Proxy ConfigMap
           kubectl create configmap nginx-proxy-config --from-file=default.conf=k8s/nginx-config.yaml -n devops-lab --dry-run=client -o yaml | kubectl replace --force -f -
+          # Restart Nginx to load the new config
           kubectl rollout restart deployment web-server -n devops-lab
-
-      - name: Final SRE Health Check
+          
+      - name: Final SRE Health Check & Access URL
         run: |
-          kubectl get pods -n devops-lab
-          echo "Deployment successful. View at http://192.168.0.26:30088"
-
-
-      - name: Verify Source Files Exist
-        run: |
-          # This command will list the files so we can confirm their paths in the logs
-          ls -R src/
-          ls -R app/
-          if [ ! -f src/shop.jsp ]; then
-            echo "Error: src/shop.jsp not found in the runner's workspace!"
-            exit 1
-          fi
+          echo "Waiting 10 seconds for services to start..."
+          sleep 10
+          kubectl get pods,svc -n devops-lab
+          echo "Deployment successful."
 
