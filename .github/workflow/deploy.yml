@@ -1,0 +1,18 @@
+name: Raspberry Pi SRE Deployment
+on:
+  push:
+    branches: [ main ] # This triggers the action whenever code is pushed to main
+
+jobs:
+  deploy-to-pi:
+    runs-on: self-hosted # Tells GitHub to use YOUR Pi 5 runner
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Update Kubernetes Lab (Restart Pods)
+        run: |
+          # The SRE method to apply changes and restart deployments gracefully
+          kubectl rollout restart deployment web-server -n devops-lab
+          kubectl rollout restart deployment app-server -n devops-lab
+          echo "Deployment job finished."
