@@ -16,3 +16,8 @@ jobs:
           kubectl rollout restart deployment web-server -n devops-lab
           kubectl rollout restart deployment app-server -n devops-lab
           echo "Deployment job finished."
+
+      - name: Database Connection Test
+        run: |
+          # SRE Check: Can the App Server see the DB?
+          kubectl exec -it $(kubectl get pods -n devops-lab -l app=app-server -o jsonpath='{.items[0].metadata.name}') -n devops-lab -- timeout 2 bash -c "cat < /dev/tcp/my-db-postgresql/5432" && echo "DB is reachable" || echo "DB Connection Failed"
