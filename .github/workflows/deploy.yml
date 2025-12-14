@@ -13,13 +13,18 @@ jobs:
       - name: Deploy Backend Logic (JSP)
         run: |
           # Inject shop.jsp into the Tomcat App Server
-          kubectl create configmap ecommerce-logic --from-file=shop.jsp=src/shop.jsp -n devops-lab --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create configmap ecommerce-logic --from-file=shop.jsp=src/shop.jsp -n devops-lab --dry-run=client -o yaml | kubectl replace --force -f -
           kubectl rollout restart deployment app-server -n devops-lab
 
       - name: Deploy Frontend UI (HTML)
         run: |
           # Inject index.html into the Nginx Web Server
-          kubectl create configmap web-frontend --from-file=index.html=src/index.html -n devops-lab --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create configmap web-frontend --from-file=index.html=src/index.html -n devops-lab --dry-run=client -o yaml | kubectl replace --force -f -
+          kubectl rollout restart deployment web-server -n devops-lab
+      - name: Deploy Nginx Configuration (The Proxy Rule)
+        run: |
+          # Use 'replace --force' to update the Nginx CM
+          kubectl create configmap nginx-proxy-config --from-file=default.conf=k8s/nginx-config.yaml -n devops-lab --dry-run=client -o yaml | kubectl replace --force -f -
           kubectl rollout restart deployment web-server -n devops-lab
 
       - name: Final SRE Health Check
