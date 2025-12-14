@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-server
+  namespace: devops-lab
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: tomcat
+  template:
+    metadata:
+      labels:
+        app: tomcat
+    spec:
+      containers:
+      - name: tomcat
+        image: tomcat:9.0-jre11-slim
+        ports:
+        - containerPort: 8080
+        volumeMounts:
+        - name: code-volume
+          # This is the fix: Mount directly to the ROOT folder path
+          mountPath: /usr/local/tomcat/webapps/ROOT/shop.jsp 
+          subPath: shop.jsp
+      volumes:
+      - name: code-volume
+        configMap:
+          name: ecommerce-logic # This name matches the CM created in the workflow
