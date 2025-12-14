@@ -10,6 +10,10 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      - name: Ensure 'devops-lab' Namespace Exists
+        run: |
+          kubectl create namespace devops-lab || echo "Namespace already exists or cannot be created"        
+
       - name: Deploy Backend Logic (JSP)
         run: |
           # Inject shop.jsp into the Tomcat App Server
