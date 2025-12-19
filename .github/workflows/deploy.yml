@@ -21,10 +21,16 @@ jobs:
           helm repo update
           helm install monitoring prometheus-community/kube-prometheus-stack --namespace monitoring --wait --timeout 5m
 
-      - name: Install Database (PostgreSQL) and Services
+      - name: Install Database (PostgreSQL)
         run: |
-          helm repo add bitnami charts.bitnamico.com # Corrected URL
-          helm install my-db oci://registry-1.docker.io/bitnamicharts/postgresql --namespace devops-lab --set auth.database=student_db --set auth.postgresPassword=devops_password --wait
+          # SRE Best Practice: Use 'upgrade --install' so it works on fresh or existing clusters
+          helm upgrade --install my-db oci://registry-1.docker.io/bitnamicharts/postgresql \
+            --namespace devops-lab \
+            --create-namespace \
+            --set auth.database=student_db \
+            --set auth.postgresPassword=devops_password \
+            --wait
+
 
           # Create internal K8s services for the app/web servers
           kubectl expose deployment app-server --port=8080 --name=app-server -n devops-lab || echo "app-server svc exists"
