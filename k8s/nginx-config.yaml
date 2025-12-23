@@ -2,14 +2,14 @@ server {
     listen 80;
 
     location / {
-        proxy_pass app-server.devops-lab.svc.cluster.local;
+        proxy_pass http://app-server:8080/;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     }
 
     location /shop.jsp {
-        proxy_pass app-server.devops-lab.svc.cluster.localshop.jsp;
+        proxy_pass http://app-server:8080/shop.jsp;
         proxy_set_header Host $host;
     }
 
