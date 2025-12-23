@@ -19,7 +19,6 @@ jobs:
         run: |
           helm repo add prometheus-community prometheus-community.github.io || true
           helm repo update
-          # SRE Fix: upgrade --install prevents "name already in use" errors
           helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
             --namespace monitoring \
             --set grafana.service.type=NodePort \
@@ -28,7 +27,6 @@ jobs:
 
       - name: Deploy Database (PostgreSQL)
         run: |
-          # SRE Fix: Using OCI registry with upgrade --install
           helm upgrade --install my-db oci://registry-1.docker.io/bitnamicharts/postgresql \
             --namespace devops-lab \
             --set auth.database=student_db \
@@ -62,6 +60,18 @@ jobs:
                 nodePort: 30088
           EOF
 
+      - name: SRE Fix: Inject PostgreSQL JDBC Driver
+        run: |
+          # 1. Download the actual binary JAR file (approx 1MB)
+          curl -L -o postgresql.jar jdbc.postgresql.org
+          
+          # 2. Loop through all app pods and copy the driver to the Tomcat lib folder
+          # This ensures the 'org.postgresql.Driver' error is resolved
+          for pod in $(kubectl get pods -n devops-lab -l app=app-server -o jsonpath='{.items[*].metadata.name}'); do
+            echo "Injecting driver into $pod..."
+            kubectl cp postgresql.jar devops-lab/$pod:/usr/local/tomcat/lib/
+          done
+
       - name: Inject Application Logic (JSP & HTML)
         run: |
           # SRE Fix: use 'apply' on ConfigMaps to allow daily code updates
@@ -73,9 +83,9 @@ jobs:
 
       - name: Rollout Updates (Restart Pods)
         run: |
-          # Force pods to pick up the new ConfigMap changes
+          # Force pods to pick up the new ConfigMap AND the injected JDBC driver
           kubectl rollout restart deployment app-server -n devops-lab
-          # Wait a few seconds to avoid the "throttling" error you saw yesterday
+          # Wait a few seconds to avoid throttling
           sleep 5
           kubectl rollout restart deployment web-server -n devops-lab
 
