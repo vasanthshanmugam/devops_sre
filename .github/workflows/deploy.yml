@@ -17,7 +17,7 @@ jobs:
           
       - name: Deploy Monitoring Stack (Prometheus/Grafana)
         run: |
-          helm repo add prometheus-community prometheus-community.github.io || true
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts || true
           helm repo update
           helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
             --namespace monitoring \
@@ -35,14 +35,14 @@ jobs:
 
       - name: Deploy Infrastructure (App & Web)
         run: |
-          # Apply base deployments from your k8s folder
+          # Apply base deployments
           kubectl apply -f k8s/app-deployment.yaml
           kubectl apply -f k8s/web-deployment.yaml
           
-          # Ensure services exist and are linked correctly
+          # Link internal services
           kubectl expose deployment app-server --port=8080 --name=app-server -n devops-lab --dry-run=client -o yaml | kubectl apply -f -
           
-          # Setup Web Service with fixed NodePort 30088
+          # Expose Web Service on fixed student port 30088
           cat <<EOF | kubectl apply -f -
           apiVersion: v1
           kind: Service
@@ -60,13 +60,11 @@ jobs:
                 nodePort: 30088
           EOF
 
-      - name: SRE Fix: Inject PostgreSQL JDBC Driver
+      - name: SRE Fix - Inject PostgreSQL JDBC Driver
         run: |
-          # 1. Download the actual binary JAR file (approx 1MB)
+          # Download official 2025 driver
           curl -L -o postgresql.jar jdbc.postgresql.org
-          
-          # 2. Loop through all app pods and copy the driver to the Tomcat lib folder
-          # This ensures the 'org.postgresql.Driver' error is resolved
+          # Loop through all app pods to inject driver into Tomcat lib
           for pod in $(kubectl get pods -n devops-lab -l app=app-server -o jsonpath='{.items[*].metadata.name}'); do
             echo "Injecting driver into $pod..."
             kubectl cp postgresql.jar devops-lab/$pod:/usr/local/tomcat/lib/
@@ -74,18 +72,15 @@ jobs:
 
       - name: Inject Application Logic (JSP & HTML)
         run: |
-          # SRE Fix: use 'apply' on ConfigMaps to allow daily code updates
+          # Apply ConfigMaps for business logic and UI
           kubectl create configmap ecommerce-logic --from-file=shop.jsp=src/shop.jsp -n devops-lab --dry-run=client -o yaml | kubectl apply -f -
           kubectl create configmap web-frontend --from-file=index.html=src/index.html -n devops-lab --dry-run=client -o yaml | kubectl apply -f -
-          
-          # Inject Nginx Proxy Config
           kubectl create configmap nginx-proxy-config --from-file=default.conf=k8s/nginx-config.yaml -n devops-lab --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Rollout Updates (Restart Pods)
         run: |
-          # Force pods to pick up the new ConfigMap AND the injected JDBC driver
+          # Graceful restart to apply JDBC driver and ConfigMap changes
           kubectl rollout restart deployment app-server -n devops-lab
-          # Wait a few seconds to avoid throttling
           sleep 5
           kubectl rollout restart deployment web-server -n devops-lab
 
