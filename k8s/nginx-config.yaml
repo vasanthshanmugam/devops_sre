@@ -1,20 +1,17 @@
 server {
     listen 80;
 
+    # 1. The Frontend (Home Page)
     location / {
-        proxy_pass http://app-server:8080/;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        root /usr/share/nginx/html;
+        index index.html;
     }
 
+    # 2. THE FIX: Explicitly proxy the JSP file to Tomcat
     location /shop.jsp {
         proxy_pass http://app-server:8080/shop.jsp;
         proxy_set_header Host $host;
-    }
-
-    location /index.html {
-        root /usr/share/nginx/html;
-        index index.html;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     }
 }
