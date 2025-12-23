@@ -18,4 +18,11 @@ spec:
         image: tomcat:9.0-jre11-slim
         ports:
         - containerPort: 8080
-        # The volumes will be added later by the workflow via patching
+        volumeMounts:
+        - name: code-volume # Name of the volume mount
+          mountPath: /usr/local/tomcat/webapps/ROOT/shop.jsp # Exact file path in container
+          subPath: shop.jsp # Name of the key in the ConfigMap
+      volumes:
+      - name: code-volume # Matches the name used in volumeMounts
+        configMap:
+          name: ecommerce-logic # Name of the ConfigMap created by the workflow
