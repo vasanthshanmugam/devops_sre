@@ -1,17 +1,22 @@
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: nginx-proxy-config
-  namespace: devops-lab
-data:
-  default.conf: |
-    server {
-        listen 80;
-        location / {
-            # Pass to the Tomcat application service name
-            proxy_pass http://app-server:8080/; 
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        }
+server {
+    listen 80;
+
+    # Backend API requests (Tomcat)
+    location / {
+        proxy_pass app-server.devops-lab.svc.cluster.local;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     }
+
+    # Direct access to the shop page
+    location /shop.jsp {
+        proxy_pass app-server.devops-lab.svc.cluster.localshop.jsp;
+        proxy_set_header Host $host;
+    }
+
+    # Frontend Static UI
+    location /index.html {
+        root /usr/share/nginx/html;
+    }
+}
